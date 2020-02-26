@@ -1,15 +1,19 @@
-CXX = g++
-CXXFLAGS = -Wall -Werror -Wextra -pedantic -std=c++17 -g -fsanitize=address
-LDFLAGS =  -fsanitize=address
+OBJS = bss.o
+SOURCE = bss.c
+HEADER = sg_rs232.h sg_tcp.h
+OUT = bss
+LFLAGS =
 
-SRC = bss.c
-OBJ = $(SRC:.cc=.o)
-EXEC = bss
+all: bss
 
-all: $(EXEC)
+bss: $(OBJS)
+	$(CC) -o $@ $^ $(LFLAGS)
 
-$(EXEC): $(OBJ)
-	$(CXX) $(LDFLAGS) -o $@ $(OBJ) $(LBLIBS)
+%.o: %.c $(HEADER)
+	$(CC) -c -o $@ $< $(LFLAGS)
 
 clean:
-	rm -rf $(OBJ) $(EXEC)
+	rm -f $(OBJS) $(OUT)
+
+run: $(OUT)
+	./$(OUT)
