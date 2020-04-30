@@ -59,6 +59,7 @@ struct T_client {
 	int name;
 	int id;
 	char type;
+	int alive;
 	int board[100];
 	struct T_client *next;
 };
@@ -154,6 +155,7 @@ w_connect(unsigned char c)
 			printf("Connection établie\n");
 		} else {
 			printf("Error w_connect :: con.type = tcp\n");
+			return NULL;
 		}
 	} else if (c == 's') { // connection sur root
 		char name[10];
@@ -162,6 +164,7 @@ w_connect(unsigned char c)
 		int fd = ini(name);
 		if (fd < 1) {
 			printf("Error w_connect :: con.type = serial\n");
+			return NULL;
 		} else {
 			con->id = fd;
 			con->name = player_count++;
@@ -188,6 +191,9 @@ init_client(struct T_client *anchor)
 	char answer = 0;
 	int done, isOk;
 
+	/*
+	 * Pour le reste des clients
+	 */
 	done = 0;
 	while (!done) {
 		isOk = 0;
@@ -196,8 +202,12 @@ init_client(struct T_client *anchor)
 			answer = 0;
 			scanf(" %c", &answer);
 			if (answer == 't' || answer == 's') {
-				current_node->next = w_connect(answer);
-				isOk = 1;
+				current_node = w_connect(answer);
+				if (current_node == NULL) {
+					isOk = 0;
+				} else {
+					isOk = 1;
+				}
 			}
 		}
 
@@ -212,10 +222,11 @@ init_client(struct T_client *anchor)
 
 			if (answer == 'n') {
 				done = 1;
+			} else {
+				current_node = current_node->next;
 			}
+			
 		}
-
-		current_node = current_node->next;
 	}
 }
 
@@ -242,13 +253,13 @@ init_game(struct T_client *anchor)
 			if (0 <= received && received <= 99){
 				current_node->board[received] = 1;
 				count++;
-				w_send(current_node, 100);
+				w_send(current_node, 106);
 			} else {
-				w_send(current_node, 101);
+				w_send(current_node, 106);
 			}
 		}
 
-		w_send(current_node, 100); // confirmation
+		w_send(current_node, 107); // confirmation
 
 		current_node = current_node->next;
 	}
@@ -268,7 +279,7 @@ end_game(struct T_client *anchor)
 	while (current_node != NULL) {
 		printf("Demande des position au joueur %d\n", current_node->name);
 
-		w_send(current_node, 105);
+		w_send(current_node, 108);
 
 		count = BOAT_MAX;
 		for (int i = 0; i < 100; i++) {
@@ -278,9 +289,9 @@ end_game(struct T_client *anchor)
 		}
 		
 		if (count == 0) {
-			w_send(current_node, 101); /* lose */
+			w_send(current_node, 104); /* lose */
 		} else {
-			w_send(current_node, 100); /* win */
+			w_send(current_node, 105); /* win */
 		}
 
 		current_node = current_node->next;
@@ -305,10 +316,29 @@ game_check(struct T_client *anchor)
 				count--;
 			}
 		}
-		
+
+		if (count == 0) {
+			current_node->alive = 0;
+		} else {
+			current_node->alive = 1;
+		}
+
+		current_node = current_node->next;
 	}
 
-	return 0;
+	count = 0;
+	current_node = anchor;
+	while (current_node != NULL) {
+		if (current_node->alive == 1) {
+			count++;
+		}
+	}
+
+	if (count == 0 || count == 1) {
+		return 1;
+	} else {
+		return 0;
+	}
 }
 
 static void
@@ -323,7 +353,7 @@ game(struct T_client *anchor)
 	char answer = 0;
 
 	while (!done) {
-		w_send(current_node, 100);
+		w_send(current_node, 102);
 		isOk = 0;
 		while (!isOk) {
 			answer = w_receive(current_node);
@@ -356,7 +386,7 @@ game(struct T_client *anchor)
 int
 main(int argc, char const *argv[])
 {
-	struct T_client *anchor = (struct T_client*) malloc(sizeof(struct T_client));
+	struct T_client *anchor;
 	init_client(anchor);
 	init_game(anchor);
 	game(anchor);
