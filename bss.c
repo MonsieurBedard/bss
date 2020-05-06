@@ -29,6 +29,7 @@
  * This is the server side code for a semi-battleship game
  */
 
+#include <ncurses.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -42,7 +43,6 @@
 #define ADR_LISTEN "INADDR_ANY" /* "INADDR_ANY" ou "192.168.2.2" */
 #define PORT_NET 32030 /* Port sur lequel le serveur attend */
 
-#define CLIENTS_NUMBER 10
 #define BUFFER_MAX 100
 #define BOAT_MAX 3
 
@@ -69,7 +69,7 @@ static char w_receive(struct T_client *con);
 static void w_send(struct T_client *con, unsigned char c);
 static void w_send_all(struct T_client *anchor, unsigned char c);
 static struct T_client * w_connect(unsigned char c);
-static void draw_interface(struct T_client *anchor);
+static void draw_interface(struct T_client *anchor, WINDOW *window);
 static void init_client(struct T_client *anchor);
 static void init_game(struct T_client *anchor);
 static void end_game(struct T_client *anchor);
@@ -176,9 +176,72 @@ w_connect(unsigned char c)
 }
 
 static void
-draw_interface(struct T_client *anchor)
+draw_interface(struct T_client *anchor, WINDOW *window)
 {
-	/* optionnel */
+	struct T_client *current_node = anchor;
+	int temp_board[100] = { 0 };
+	char grid[10][10];
+
+	while (current_node != NULL) {
+		for (int i = 0; i <= 99; i++) {
+			if (current_node->board[i] != 0) {
+				temp_board[i] = 1;
+			}
+		}
+		current_node = current_node->next;
+	}
+
+	for (int i = 0; i < 10; i++) {
+		for (int j = 0; j < 10; j++) {
+			if (temp_board[(j * 10) + i] == 1) {
+				grid[i][j] = 'B';
+			} else if (main_board[(j * 10) + i] == 1) {
+				grid[i][j] = 'X';
+			} else if ((main_board[(j * 10) + i] == 1) && (temp_board[(j * 10) + i] == 1)) {
+				grid[i][j] = 'T';
+			} else {
+				grid[i][j] = ' ';
+			}
+		}
+	}
+
+	wprintw(window, "  ");
+
+	for (int j = 0; j < 10; j++) {
+		wprintw(window, "  %d ", j);
+	}
+
+	wprintw(window, "\n");
+
+	for (int i = 0; i < 10; i++) {
+
+		wprintw(window, "  ");
+
+		for (int j = 0; j < 10; j++) {
+			wprintw(window, "+---");
+		}
+
+		wprintw(window, "+\n%d ", i);
+
+		for (int j = 0; j < 10; j++) {
+			wprintw(window, "| ", i);
+			wprintw(window, "%c", grid[i][j]);
+			wprintw(window, " ");
+		}
+
+		wprintw(window, "|\n");
+	}
+
+	wprintw(window, "  ");
+
+	for (int j = 0; j < 10; j++) {
+		wprintw(window, "+---");
+	}
+
+	wprintw(window, "+\n");
+
+	refresh();
+	wrefresh(window);
 }
 
 static void
@@ -276,9 +339,9 @@ end_game(struct T_client *anchor)
 	int isOk, count;
 	char received;
 
-	while (current_node != NULL) {
-		printf("Demande des position au joueur %d\n", current_node->name);
+	printf("Fin de la partie\n");
 
+	while (current_node != NULL) {
 		w_send(current_node, 108);
 
 		count = BOAT_MAX;
@@ -290,8 +353,10 @@ end_game(struct T_client *anchor)
 		
 		if (count == 0) {
 			w_send(current_node, 104); /* lose */
+			printf("Joueur #%d perd\n", current_node->name);
 		} else {
 			w_send(current_node, 105); /* win */
+			printf("Joueur #%d gagne\n", current_node->name);
 		}
 
 		current_node = current_node->next;
@@ -348,6 +413,15 @@ game(struct T_client *anchor)
 	 * Déroulement de la partie.
 	 */
 
+	/* Ncurses */
+	initscr();
+	noecho();
+	curs_set(FALSE);
+	int board[100];
+	int dimension_x, dimension_y;
+	getmaxyx(stdscr, dimension_y, dimension_x);
+	WINDOW *w_board = newwin(22, 44, (dimension_y / 2) - 11, (dimension_x / 2) - 22);
+
 	struct T_client *current_node = anchor;
 	int done = 0, isOk = 0;
 	char answer = 0;
@@ -371,6 +445,8 @@ game(struct T_client *anchor)
 			}
 		}
 
+		draw_interface(anchor, w_board);
+
 		if (game_check(anchor) == 1) {
 			done = 1;
 		}
@@ -381,12 +457,19 @@ game(struct T_client *anchor)
 			current_node = current_node->next;
 		}
 	}
+
+	delwin(w_board);
+	endwin();
 }
 
 int
 main(int argc, char const *argv[])
 {
 	struct T_client *anchor;
+	for (int i = 0; i <= 99; i++) {
+		main_board[i] = 0;
+	}
+
 	init_client(anchor);
 	init_game(anchor);
 	game(anchor);

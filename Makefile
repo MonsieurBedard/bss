@@ -2,7 +2,7 @@ OBJS = bss.o
 SOURCE = bss.c
 HEADER = sg_rs232.h sg_tcp.h
 OUT = bss
-LFLAGS =
+LFLAGS = -lncurses
 
 all: bss
 
