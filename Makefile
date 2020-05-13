@@ -6,6 +6,9 @@ LFLAGS = -lncurses
 
 all: bss
 
+demo: 
+	$(CC) bss_demo.c -o demo $(LFLAGS)
+
 bss: $(OBJS)
 	$(CC) -o $@ $^ $(LFLAGS)
 
